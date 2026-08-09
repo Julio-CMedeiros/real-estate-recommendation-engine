@@ -13,7 +13,7 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     else:
         path = Path(os.environ.get("REC_ENGINE_DB_PATH", str(DB_PATH)))
     needs_seed = not path.exists()
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     if needs_seed:
         _seed(conn)
