@@ -163,13 +163,21 @@ docker compose up -d
 
 ### Authentication
 
-All endpoints except `/health` require an `X-API-Key` header. Issue a key:
+All endpoints except `/health` require an `X-API-Key` header. Issue a key with the `rec-engine create-key` CLI command — but which command to run depends on how the server is running, because the key is written to whatever SQLite file `REC_ENGINE_DB_PATH` points at, and that must be the *same* database file the API server reads from:
 
 ```bash
+# Local (no Docker) - writes to recommendation_engine/demo.db (or
+# REC_ENGINE_DB_PATH if you've set it) on the host
 rec-engine create-key my-service-name
+
+# Docker - must run *inside* the running container, so the key lands in
+# /data/demo.db on the named volume the container actually reads from
+docker compose exec api rec-engine create-key my-service-name
 ```
 
-This prints the raw key once — store it, it is not recoverable afterward.
+Running the plain (non-`docker compose exec`) form against a `docker compose up -d` deployment will create the key in a *different* database on the host, and every request will then fail with a 401 with no indication why. If you're unsure which database a running server is using, check its `REC_ENGINE_DB_PATH` environment variable.
+
+Either command prints the raw key once — store it, it is not recoverable afterward.
 
 ### Endpoints
 
@@ -180,6 +188,10 @@ This prints the raw key once — store it, it is not recoverable afterward.
 | GET | `/recommendations?type=&priority=` | API key | Recommendations for all active properties, filtered |
 
 Interactive docs at `/docs` once the server is running.
+
+### Rate Limiting
+
+Authenticated endpoints are rate-limited per API key: 60 requests of burst capacity, refilling at 1 request/second. Requests beyond the budget receive `429 Too Many Requests`.
 
 ## Project Structure
 
@@ -205,7 +217,12 @@ recommendation_engine/
 │       └── r01_missing_photos.py
 ├── database.py              # SQLite with demo data
 └── models.py                # Property, Recommendation types
+
+api/                         # FastAPI service layer (auth, rate limiting, routes)
+tests/                       # pytest suite covering the engine, CLI, and API
 ```
+
+`.env.example` documents `API_PORT` (host port for `docker compose up`); `REC_ENGINE_DB_PATH` selects which SQLite file the engine and API read/write (see Authentication above).
 
 ## Design Principles
 
