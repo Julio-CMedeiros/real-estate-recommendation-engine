@@ -1,18 +1,39 @@
 """SQLite database with Lisbon metro area seed data."""
 
+import os
 import sqlite3
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "demo.db"
 
 
-def get_connection() -> sqlite3.Connection:
-    needs_seed = not DB_PATH.exists()
-    conn = sqlite3.connect(str(DB_PATH))
+def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
+    if db_path is not None:
+        path = Path(db_path)
+    else:
+        path = Path(os.environ.get("REC_ENGINE_DB_PATH", str(DB_PATH)))
+    needs_seed = not path.exists()
+    conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     if needs_seed:
         _seed(conn)
+    _ensure_api_keys_table(conn)
     return conn
+
+
+def _ensure_api_keys_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id INTEGER PRIMARY KEY,
+            consumer_name TEXT NOT NULL,
+            hashed_key TEXT NOT NULL UNIQUE,
+            created_at TEXT DEFAULT (datetime('now')),
+            revoked_at TEXT
+        )
+        """
+    )
+    conn.commit()
 
 
 def _seed(conn: sqlite3.Connection) -> None:
