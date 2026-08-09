@@ -148,6 +148,39 @@ python -m recommendation_engine --property-id 1
 python -m recommendation_engine --dry-run
 ```
 
+## Running as a Service
+
+The engine is also available as a local HTTP API for other services to call.
+
+```bash
+# Local (no Docker)
+pip install -e .
+uvicorn api.main:app --reload
+
+# Docker
+docker compose up -d
+```
+
+### Authentication
+
+All endpoints except `/health` require an `X-API-Key` header. Issue a key:
+
+```bash
+rec-engine create-key my-service-name
+```
+
+This prints the raw key once — store it, it is not recoverable afterward.
+
+### Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|--------------|
+| GET | `/health` | none | Liveness check |
+| GET | `/properties/{id}/recommendations` | API key | Recommendations for one property |
+| GET | `/recommendations?type=&priority=` | API key | Recommendations for all active properties, filtered |
+
+Interactive docs at `/docs` once the server is running.
+
 ## Project Structure
 
 ```
