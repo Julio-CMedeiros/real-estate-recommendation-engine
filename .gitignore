@@ -4,3 +4,5 @@ __pycache__/
 *.db
 dist/
 *.egg-info/
+.superpowers/
+.env
