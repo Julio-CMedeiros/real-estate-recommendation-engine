@@ -243,7 +243,7 @@ api/                         # FastAPI service layer (auth, rate limiting, route
 tests/                       # pytest suite covering the engine, CLI, and API
 ```
 
-`.env.example` documents `API_PORT` (host port for `docker compose up`) and `DATABASE_URL` (Postgres connection string).
+`.env.example` documents `API_PORT` (host port for `docker compose up`) and `POSTGRES_PASSWORD` (shared between postgres and api services). `DATABASE_URL` must be set directly as an environment variable (see Database Setup above).
 
 ## Design Principles
 
