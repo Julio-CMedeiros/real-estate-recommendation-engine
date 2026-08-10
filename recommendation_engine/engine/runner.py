@@ -1,6 +1,7 @@
 """Engine runner - orchestrates indicator computation and rule evaluation."""
 
-import sqlite3
+from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 from ..models import Property, Recommendation
 from .indicators import compute_indicators
@@ -9,7 +10,7 @@ from .rule_registry import discover_rules
 
 
 def run_engine(
-    conn: sqlite3.Connection,
+    conn: Connection,
     property_id: int | None = None,
     dry_run: bool = False,
 ) -> list[Recommendation]:
@@ -17,7 +18,7 @@ def run_engine(
 
     Parameters
     ----------
-    conn : sqlite3.Connection
+    conn : Connection
         Database connection.
     property_id : int | None
         If set, only evaluate this property. Otherwise evaluate all active.
@@ -36,10 +37,14 @@ def run_engine(
 
     # 2. Load properties
     if property_id:
-        query = "SELECT * FROM properties WHERE id = ? AND status = 'active'"
-        rows = conn.execute(query, [property_id]).fetchall()
+        rows = conn.execute(
+            text("SELECT * FROM properties WHERE id = :id AND status = 'active'"),
+            {"id": property_id},
+        ).mappings().fetchall()
     else:
-        rows = conn.execute("SELECT * FROM properties WHERE status = 'active'").fetchall()
+        rows = conn.execute(
+            text("SELECT * FROM properties WHERE status = 'active'")
+        ).mappings().fetchall()
 
     recommendations: list[Recommendation] = []
 
@@ -113,25 +118,23 @@ def run_engine(
     return recommendations
 
 
-def _persist(conn: sqlite3.Connection, recs: list[Recommendation]) -> None:
+def _persist(conn: Connection, recs: list[Recommendation]) -> None:
     """Store recommendations in the database."""
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS recommendations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT NOT NULL,
-            type TEXT NOT NULL,
-            priority TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            property_id INTEGER,
-            version TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
-        )"""
-    )
     for rec in recs:
         conn.execute(
-            "INSERT INTO recommendations (code, type, priority, title, description, property_id, version) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [rec.code, rec.type, rec.priority, rec.title, rec.description, rec.property_id, rec.version],
+            text(
+                "INSERT INTO recommendations "
+                "(code, type, priority, title, description, property_id, version) "
+                "VALUES (:code, :type, :priority, :title, :description, :property_id, :version)"
+            ),
+            {
+                "code": rec.code,
+                "type": rec.type,
+                "priority": rec.priority,
+                "title": rec.title,
+                "description": rec.description,
+                "property_id": rec.property_id,
+                "version": rec.version,
+            },
         )
-    conn.commit()
+    conn.commit()  # self-commits - contrast seed(), which leaves commit to the caller

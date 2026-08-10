@@ -1,29 +1,27 @@
 """FastAPI dependencies: DB connection, API key auth, rate limiting."""
 
-import sqlite3
 from collections.abc import Iterator
 
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.engine import Connection
 
-from recommendation_engine.database import get_connection
+from recommendation_engine.database import get_engine
 
 from .auth import verify_api_key
 from .rate_limit import TokenBucket
 
+_engine = get_engine()
 _rate_limiter = TokenBucket(capacity=60, refill_per_second=1.0)
 
 
-def get_db() -> Iterator[sqlite3.Connection]:
-    conn = get_connection()
-    try:
+def get_db() -> Iterator[Connection]:
+    with _engine.connect() as conn:
         yield conn
-    finally:
-        conn.close()
 
 
 def require_api_key(
     x_api_key: str | None = Header(default=None),
-    conn: sqlite3.Connection = Depends(get_db),
+    conn: Connection = Depends(get_db),
 ) -> str:
     if not x_api_key:
         raise HTTPException(status_code=401, detail="missing API key")

@@ -1,10 +1,11 @@
 """FastAPI app: routes wrapping the existing rule engine."""
 
-import sqlite3
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 from recommendation_engine.engine.runner import run_engine
 
@@ -30,11 +31,11 @@ def health() -> dict:
 )
 def get_property_recommendations(
     property_id: Annotated[int, Path(gt=0)],
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    conn: Annotated[Connection, Depends(get_db)],
     _consumer: Annotated[str, Depends(require_api_key)],
 ):
     exists = conn.execute(
-        "SELECT 1 FROM properties WHERE id = ?", [property_id]
+        text("SELECT 1 FROM properties WHERE id = :id"), {"id": property_id}
     ).fetchone()
     if not exists:
         raise HTTPException(status_code=404, detail="property not found")
@@ -44,7 +45,7 @@ def get_property_recommendations(
 
 @app.get("/recommendations", response_model=list[RecommendationOut])
 def list_recommendations(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    conn: Annotated[Connection, Depends(get_db)],
     _consumer: Annotated[str, Depends(require_api_key)],
     type: RuleType | None = Query(default=None),
     priority: Priority | None = Query(default=None),

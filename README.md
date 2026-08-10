@@ -152,6 +152,34 @@ python -m recommendation_engine --dry-run
 
 The engine is also available as a local HTTP API for other services to call.
 
+### Database Setup
+
+The API and CLI both read `DATABASE_URL` (format:
+`postgresql+psycopg://user:pass@host:port/dbname`) to connect to Postgres. Set
+this before running any of the commands below — the server and CLI will fail
+without it.
+
+```bash
+# Apply migrations (creates all tables)
+alembic upgrade head
+
+# Seed the demo dataset (safe to run more than once)
+rec-engine seed-db
+```
+
+With Docker, migrations run automatically on container start; seed manually if you
+want the demo data:
+
+```bash
+docker compose exec api rec-engine seed-db
+```
+
+The default `POSTGRES_PASSWORD` in `docker-compose.yml` is a local-dev
+convenience only — override it via `.env` for any shared or production
+deployment.
+
+### Starting the Server
+
 ```bash
 # Local (no Docker)
 pip install -e .
@@ -163,21 +191,17 @@ docker compose up -d
 
 ### Authentication
 
-All endpoints except `/health` require an `X-API-Key` header. Issue a key with the `rec-engine create-key` CLI command — but which command to run depends on how the server is running, because the key is written to whatever SQLite file `REC_ENGINE_DB_PATH` points at, and that must be the *same* database file the API server reads from:
+All endpoints except `/health` require an `X-API-Key` header. Issue a key with the `rec-engine create-key` CLI command:
 
 ```bash
-# Local (no Docker) - writes to recommendation_engine/demo.db (or
-# REC_ENGINE_DB_PATH if you've set it) on the host
+# Local (no Docker)
 rec-engine create-key my-service-name
 
-# Docker - must run *inside* the running container, so the key lands in
-# /data/demo.db on the named volume the container actually reads from
+# Docker
 docker compose exec api rec-engine create-key my-service-name
 ```
 
-Running the plain (non-`docker compose exec`) form against a `docker compose up -d` deployment will create the key in a *different* database on the host, and every request will then fail with a 401 with no indication why. If you're unsure which database a running server is using, check its `REC_ENGINE_DB_PATH` environment variable.
-
-Either command prints the raw key once — store it, it is not recoverable afterward.
+The command prints the raw key once — store it, it is not recoverable afterward.
 
 ### Endpoints
 
@@ -196,6 +220,11 @@ Authenticated endpoints are rate-limited per API key: 60 requests of burst capac
 ## Project Structure
 
 ```
+alembic/                     # Database migrations (Alembic)
+├── versions/                # Migration scripts
+│   └── *.py
+└── env.py                   # Migration environment config
+
 recommendation_engine/
 ├── __main__.py              # CLI entry point
 ├── engine/
@@ -215,14 +244,14 @@ recommendation_engine/
 │   │   └── r02_appreciation_momentum.py
 │   └── marketing/
 │       └── r01_missing_photos.py
-├── database.py              # SQLite with demo data
+├── database.py              # Postgres engine factory (pooled)
 └── models.py                # Property, Recommendation types
 
 api/                         # FastAPI service layer (auth, rate limiting, routes)
 tests/                       # pytest suite covering the engine, CLI, and API
 ```
 
-`.env.example` documents `API_PORT` (host port for `docker compose up`); `REC_ENGINE_DB_PATH` selects which SQLite file the engine and API read/write (see Authentication above).
+`.env.example` documents `API_PORT` (host port for `docker compose up`) and `POSTGRES_PASSWORD` (shared between postgres and api services). `DATABASE_URL` must be set directly as an environment variable (see Database Setup above).
 
 ## Design Principles
 

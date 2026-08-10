@@ -1,7 +1,6 @@
-import sqlite3
-
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import Connection
 
 from api.auth import create_api_key
 from api.deps import get_db
@@ -9,7 +8,7 @@ from api.main import app
 
 
 @pytest.fixture
-def client(temp_conn: sqlite3.Connection):
+def client(temp_conn: Connection):
     raw_key = create_api_key(temp_conn, "acme")
 
     def override_get_db():
