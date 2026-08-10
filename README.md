@@ -152,6 +152,34 @@ python -m recommendation_engine --dry-run
 
 The engine is also available as a local HTTP API for other services to call.
 
+### Database Setup
+
+The API and CLI both read `DATABASE_URL` (format:
+`postgresql+psycopg://user:pass@host:port/dbname`) to connect to Postgres. Set
+this before running any of the commands below — the server and CLI will fail
+without it.
+
+```bash
+# Apply migrations (creates all tables)
+alembic upgrade head
+
+# Seed the demo dataset (safe to run more than once)
+rec-engine seed-db
+```
+
+With Docker, migrations run automatically on container start; seed manually if you
+want the demo data:
+
+```bash
+docker compose exec api rec-engine seed-db
+```
+
+The default `POSTGRES_PASSWORD` in `docker-compose.yml` is a local-dev
+convenience only — override it via `.env` for any shared or production
+deployment.
+
+### Starting the Server
+
 ```bash
 # Local (no Docker)
 pip install -e .
@@ -174,26 +202,6 @@ docker compose exec api rec-engine create-key my-service-name
 ```
 
 The command prints the raw key once — store it, it is not recoverable afterward.
-
-### Database Setup
-
-The API and CLI both read `DATABASE_URL` (format:
-`postgresql+psycopg://user:pass@host:port/dbname`) to connect to Postgres.
-
-```bash
-# Apply migrations (creates all tables)
-alembic upgrade head
-
-# Seed the demo dataset (safe to run more than once)
-rec-engine seed-db
-```
-
-With Docker, migrations run automatically on container start; seed manually if you
-want the demo data:
-
-```bash
-docker compose exec api rec-engine seed-db
-```
 
 ### Endpoints
 
@@ -236,7 +244,7 @@ recommendation_engine/
 │   │   └── r02_appreciation_momentum.py
 │   └── marketing/
 │       └── r01_missing_photos.py
-├── database.py              # Postgres connection and session factory
+├── database.py              # Postgres engine factory (pooled)
 └── models.py                # Property, Recommendation types
 
 api/                         # FastAPI service layer (auth, rate limiting, routes)
