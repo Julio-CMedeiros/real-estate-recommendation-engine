@@ -9,7 +9,7 @@ from api.auth import verify_api_key
 TEST_DATABASE_URL = "postgresql+psycopg://rec_engine:rec_engine_dev_pw@localhost:5432/rec_engine_test"
 
 
-def test_create_key_command_prints_key_and_stores_hash(monkeypatch, capsys):
+def test_create_key_command_prints_key_and_stores_hash(_migrated_engine, monkeypatch, capsys):
     monkeypatch.setattr(
         sys, "argv", ["rec-engine", "create-key", "acme-service", "--database-url", TEST_DATABASE_URL]
     )
@@ -26,7 +26,7 @@ def test_create_key_command_prints_key_and_stores_hash(monkeypatch, capsys):
         conn.commit()
 
 
-def test_run_command_still_works_without_subcommand(monkeypatch, capsys):
+def test_run_command_still_works_without_subcommand(_migrated_engine, monkeypatch, capsys):
     monkeypatch.setattr(
         sys, "argv", ["rec-engine", "--dry-run", "--json", "--database-url", TEST_DATABASE_URL]
     )
@@ -35,7 +35,7 @@ def test_run_command_still_works_without_subcommand(monkeypatch, capsys):
     assert output.strip().startswith("[")
 
 
-def test_seed_db_command_is_idempotent(monkeypatch, capsys):
+def test_seed_db_command_is_idempotent(_migrated_engine, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["rec-engine", "seed-db", "--database-url", TEST_DATABASE_URL])
     main()
     first_output = capsys.readouterr().out

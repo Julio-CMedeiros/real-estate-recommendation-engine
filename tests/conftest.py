@@ -42,7 +42,14 @@ def _migrated_engine() -> Engine:
 def temp_conn(_migrated_engine: Engine) -> Connection:
     conn = _migrated_engine.connect()
     yield conn
-    conn.execute(text("DELETE FROM recommendations"))
-    conn.execute(text("DELETE FROM api_keys"))
-    conn.commit()
-    conn.close()
+    try:
+        # If a test left this connection in Postgres' aborted-transaction
+        # state (e.g. after an IntegrityError), every statement below would
+        # otherwise fail with InFailedSqlTransaction. rollback() clears that
+        # state; it's a no-op on an already-healthy connection.
+        conn.rollback()
+        conn.execute(text("DELETE FROM recommendations"))
+        conn.execute(text("DELETE FROM api_keys"))
+        conn.commit()
+    finally:
+        conn.close()

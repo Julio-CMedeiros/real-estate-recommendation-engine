@@ -1,4 +1,8 @@
-"""Idempotent seeding of the Lisbon metro area demo dataset."""
+"""Idempotent seeding of the Lisbon metro area demo dataset.
+
+Does not call conn.commit() - the caller owns the transaction boundary
+(contrast create_api_key/_persist, which self-commit after their work).
+"""
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
@@ -66,4 +70,18 @@ def seed(conn: Connection) -> None:
             (6, '2026-04', 2240, 122, 62, 41)
         ON CONFLICT (neighborhood_id, month) DO NOTHING
         """
+    ))
+
+    # Explicit-id inserts above do NOT advance the identity sequences backing
+    # neighborhoods.id / properties.id (SERIAL columns), so a later insert that
+    # omits an id would draw nextval() = 1 and collide with the seeded rows.
+    # Re-sync the sequences to the current max id. Idempotent and safe to call
+    # every time seed() runs.
+    conn.execute(text(
+        "SELECT setval(pg_get_serial_sequence('neighborhoods', 'id'), "
+        "COALESCE((SELECT MAX(id) FROM neighborhoods), 1))"
+    ))
+    conn.execute(text(
+        "SELECT setval(pg_get_serial_sequence('properties', 'id'), "
+        "COALESCE((SELECT MAX(id) FROM properties), 1))"
     ))

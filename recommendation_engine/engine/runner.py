@@ -137,4 +137,4 @@ def _persist(conn: Connection, recs: list[Recommendation]) -> None:
                 "version": rec.version,
             },
         )
-    conn.commit()
+    conn.commit()  # self-commits - contrast seed(), which leaves commit to the caller
