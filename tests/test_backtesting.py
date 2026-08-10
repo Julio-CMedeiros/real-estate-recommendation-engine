@@ -33,3 +33,27 @@ def test_reconstruct_property_as_of_overrides_price_only(temp_conn):
     assert snapshot["id"] == 1
     assert snapshot["area_m2"] == 85  # unchanged from the current row
     assert snapshot["neighborhood_id"] == 1
+
+
+from recommendation_engine.backtesting import evaluate_overpriced_rule
+
+
+def test_evaluate_overpriced_rule_against_seeded_events(temp_conn):
+    results = evaluate_overpriced_rule(temp_conn)
+    by_property = {r.property_id: r for r in results}
+    assert set(by_property.keys()) == {1, 6}
+
+    # Both seeded events reconstruct to the property's listing-day state (the
+    # only prior price_history row available is the 'listed' event itself),
+    # so days_on_market=0 at that point — well under the rule's >30 threshold.
+    # The rule correctly does not fire for either; both are real misses
+    # against what actually happened (a real price drop later on).
+    p1 = by_property[1]
+    assert p1.fired is False
+    assert p1.suggested_reduction_pct is None
+    assert p1.actual_reduction_pct == 4.59
+
+    p6 = by_property[6]
+    assert p6.fired is False
+    assert p6.suggested_reduction_pct is None
+    assert p6.actual_reduction_pct == 5.56

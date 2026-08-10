@@ -8,8 +8,14 @@ schema observes (no sale date, `properties.status` never changes) — it gets
 an explicit "not yet backtestable" note instead of a fabricated metric.
 """
 
+from dataclasses import dataclass
+
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
+
+from recommendation_engine.engine.indicators import compute_indicators
+from recommendation_engine.models import Property
+from recommendation_engine.rules.pricing.r01_overpriced import OverpricedRule
 
 
 def find_price_change_events(conn: Connection) -> list[dict]:
@@ -57,3 +63,64 @@ def reconstruct_property_as_of(conn: Connection, property_id: int, as_of: str, p
     snapshot = dict(row)
     snapshot["price"] = price
     return snapshot
+
+
+@dataclass
+class BacktestEventResult:
+    """One historical price-change event evaluated against a rule's prediction."""
+
+    property_id: int
+    as_of: str
+    fired: bool
+    suggested_reduction_pct: float | None
+    actual_reduction_pct: float
+
+
+def evaluate_overpriced_rule(conn: Connection) -> list[BacktestEventResult]:
+    """Backtest OverpricedRule: for every real price decrease, would the rule
+    have fired beforehand, and how close was its suggested reduction to what
+    actually happened?"""
+    rule = OverpricedRule()
+    results = []
+    for event in find_price_change_events(conn):
+        if event["new_price"] >= event["old_price"]:
+            continue  # not a price decrease — not this rule's prediction to check
+
+        snapshot = reconstruct_property_as_of(
+            conn, event["property_id"], event["as_of"], event["old_price"]
+        )
+        indicators = compute_indicators(
+            snapshot, conn, requested=rule.required_indicators, as_of=event["as_of"]
+        )
+        fired = rule.prerequisites(indicators)
+
+        suggested_reduction_pct = None
+        if fired:
+            prop = Property(
+                id=snapshot["id"],
+                title=snapshot["title"],
+                type=snapshot["type"],
+                neighborhood="",
+                city="",
+                price=snapshot["price"],
+                area_m2=snapshot["area_m2"],
+                bedrooms=snapshot["bedrooms"],
+                bathrooms=snapshot["bathrooms"],
+                energy_rating=snapshot["energy_rating"],
+                listed_date=snapshot["listed_date"],
+                status=snapshot["status"],
+            )
+            rule_result = rule.evaluate(prop, indicators)
+            suggested_reduction_pct = rule_result.metadata["suggested_reduction_pct"]
+
+        actual_reduction_pct = round(
+            (event["old_price"] - event["new_price"]) / event["old_price"] * 100, 2
+        )
+        results.append(BacktestEventResult(
+            property_id=event["property_id"],
+            as_of=event["as_of"],
+            fired=fired,
+            suggested_reduction_pct=suggested_reduction_pct,
+            actual_reduction_pct=actual_reduction_pct,
+        ))
+    return results
