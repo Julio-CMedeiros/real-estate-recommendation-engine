@@ -178,6 +178,27 @@ The default `POSTGRES_PASSWORD` in `docker-compose.yml` is a local-dev
 convenience only — override it via `.env` for any shared or production
 deployment.
 
+### Backtesting
+
+Rules that predict something the schema actually records can be checked
+against real historical outcomes with the `rec-engine backtest` CLI command.
+For example, `OverpricedRule` predicts a price drop, and `price_history`
+records real price changes, so the backtest replays every historical
+price-change event, reconstructs the property as it was the day before the
+change, and reports whether the rule would have fired and how its suggested
+reduction compared to what actually happened. Rules with no recorded outcome
+to check against (e.g. `UnderpricedOpportunityRule`, which predicts a quick
+sale that nothing in the schema observes) get an honest "not yet
+backtestable" note instead of a fabricated metric.
+
+```bash
+# Local (no Docker)
+rec-engine backtest
+
+# Docker
+docker compose exec api rec-engine backtest
+```
+
 ### Starting the Server
 
 ```bash
