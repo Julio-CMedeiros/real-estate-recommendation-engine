@@ -102,6 +102,8 @@ def _days_on_market(prop: RowMapping, _conn: Connection, as_of: str | None = Non
     return (reference - listed).days
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _price_reductions_count(prop: RowMapping, conn: Connection, as_of: str | None = None) -> int:
     """Number of price reductions since listing."""
     row = conn.execute(
@@ -114,6 +116,8 @@ def _price_reductions_count(prop: RowMapping, conn: Connection, as_of: str | Non
     return row["cnt"] if row else 0
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _rental_yield_gross(prop: RowMapping, _conn: Connection, as_of: str | None = None) -> float:
     """Estimated gross rental yield %."""
     tier = _NEIGHBORHOOD_TIER.get(prop["neighborhood_id"], "mid")
@@ -139,6 +143,8 @@ def _area_appreciation_6m(prop: RowMapping, conn: Connection, as_of: str | None 
     return round(((latest - oldest) / oldest) * 100, 2)
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _inventory_pressure(prop: RowMapping, conn: Connection, as_of: str | None = None) -> float:
     """Ratio of active listings to monthly sales. High = buyer's market."""
     market = conn.execute(
@@ -167,11 +173,15 @@ def _similar_sold_last_30d(prop: RowMapping, conn: Connection, as_of: str | None
     return market["sold_count"] if market else 0
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _energy_rating_value(prop: RowMapping, _conn: Connection, as_of: str | None = None) -> float:
     """Price multiplier impact of current energy rating."""
     return _ENERGY_MULTIPLIER.get(prop["energy_rating"], 1.0)
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _avg_days_on_market_area(prop: RowMapping, conn: Connection, as_of: str | None = None) -> int:
     """Average days on market for the neighborhood."""
     market = conn.execute(
@@ -184,10 +194,14 @@ def _avg_days_on_market_area(prop: RowMapping, conn: Connection, as_of: str | No
     return market["avg_days_on_market"] if market else 60
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _area_sold_last_month(prop: RowMapping, conn: Connection, as_of: str | None = None) -> int:
     return _similar_sold_last_30d(prop, conn, as_of)
 
 
+# NOT as_of-aware — always returns a present-day value. Do not use this
+# indicator in any rule you intend to backtest without adding real as_of support.
 def _area_listings_count(prop: RowMapping, conn: Connection, as_of: str | None = None) -> int:
     market = conn.execute(
         text(
