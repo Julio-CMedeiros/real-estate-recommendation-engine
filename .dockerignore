@@ -2,7 +2,7 @@
 __pycache__/
 *.pyc
 *.db
-dist/
-*.egg-info/
+.git/
 .superpowers/
+tests/
 .env

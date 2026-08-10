@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - demo-db:/data
+
+volumes:
+  demo-db:
