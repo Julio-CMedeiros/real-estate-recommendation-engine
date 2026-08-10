@@ -57,3 +57,26 @@ def test_evaluate_overpriced_rule_against_seeded_events(temp_conn):
     assert p6.fired is False
     assert p6.suggested_reduction_pct is None
     assert p6.actual_reduction_pct == 5.56
+
+
+from recommendation_engine.backtesting import evaluate_underpriced_rule, format_report, run_backtest
+
+
+def test_evaluate_underpriced_rule_returns_not_backtestable_note():
+    note = evaluate_underpriced_rule(None)
+    assert "not yet backtestable" in note.lower()
+
+
+def test_run_backtest_includes_both_rule_codes(temp_conn):
+    results = run_backtest(temp_conn)
+    assert set(results.keys()) == {"T01R01", "T01R02"}
+    assert isinstance(results["T01R01"], list)
+    assert isinstance(results["T01R02"], str)
+
+
+def test_format_report_includes_both_codes_and_sample_size_caveat(temp_conn):
+    results = run_backtest(temp_conn)
+    report = format_report(results)
+    assert "T01R01" in report
+    assert "T01R02" in report
+    assert "sample" in report.lower()

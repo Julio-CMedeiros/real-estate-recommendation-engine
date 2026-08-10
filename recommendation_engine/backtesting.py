@@ -124,3 +124,44 @@ def evaluate_overpriced_rule(conn: Connection) -> list[BacktestEventResult]:
             actual_reduction_pct=actual_reduction_pct,
         ))
     return results
+
+
+def evaluate_underpriced_rule(conn: Connection) -> str:
+    """UnderpricedOpportunityRule predicts a quick sale, which nothing in the
+    schema records (no sale date, status never changes) — not backtestable
+    without a schema change, so this is an honest note, not a fake metric."""
+    return "not yet backtestable — schema has no sale-outcome data (no sold_date, status never changes)"
+
+
+_EVALUATORS = {
+    "T01R01": evaluate_overpriced_rule,
+    "T01R02": evaluate_underpriced_rule,
+}
+
+
+def run_backtest(conn: Connection) -> dict:
+    """Run every registered evaluator. Returns {rule_code: list[BacktestEventResult] | str}."""
+    return {code: fn(conn) for code, fn in _EVALUATORS.items()}
+
+
+def format_report(results: dict) -> str:
+    lines = []
+    for code, outcome in results.items():
+        lines.append(f"=== {code} ===")
+        if isinstance(outcome, str):
+            lines.append(f"  {outcome}")
+            continue
+        if not outcome:
+            lines.append("  No backtestable events found.")
+            continue
+        for r in outcome:
+            fired_str = "FIRED" if r.fired else "did not fire"
+            suggested_str = (
+                f"{r.suggested_reduction_pct:.1f}%" if r.suggested_reduction_pct is not None else "n/a"
+            )
+            lines.append(
+                f"  property {r.property_id} as of {r.as_of}: {fired_str} | "
+                f"suggested reduction: {suggested_str} | actual reduction: {r.actual_reduction_pct:.1f}%"
+            )
+        lines.append(f"  ({len(outcome)} event(s) tested — sample too small for precision/recall)")
+    return "\n".join(lines)
