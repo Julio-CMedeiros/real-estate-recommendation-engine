@@ -1,6 +1,13 @@
-from sqlalchemy import text
-
-from recommendation_engine.backtesting import find_price_change_events, reconstruct_property_as_of
+from recommendation_engine.backtesting import (
+    evaluate_overpriced_rule,
+    evaluate_underpriced_rule,
+    find_price_change_events,
+    format_report,
+    reconstruct_property_as_of,
+    run_backtest,
+    _run_rule,
+)
+from recommendation_engine.rules.pricing.r01_overpriced import OverpricedRule
 
 
 def test_find_price_change_events_returns_seeded_events(temp_conn):
@@ -35,31 +42,60 @@ def test_reconstruct_property_as_of_overrides_price_only(temp_conn):
     assert snapshot["neighborhood_id"] == 1
 
 
-from recommendation_engine.backtesting import evaluate_overpriced_rule
-
-
 def test_evaluate_overpriced_rule_against_seeded_events(temp_conn):
     results = evaluate_overpriced_rule(temp_conn)
     by_property = {r.property_id: r for r in results}
     assert set(by_property.keys()) == {1, 6}
 
-    # Both seeded events reconstruct to the property's listing-day state (the
-    # only prior price_history row available is the 'listed' event itself),
-    # so days_on_market=0 at that point — well under the rule's >30 threshold.
-    # The rule correctly does not fire for either; both are real misses
-    # against what actually happened (a real price drop later on).
+    # Indicators are now evaluated as of eval_date (the day before the actual
+    # price-change event), not the listing date. Property 1 (neighborhood 1,
+    # which has market data) reconstructs to days_on_market=32 as of
+    # 2026-03-19 — over the >30 threshold — but price_vs_area_avg is only
+    # 5.11% (price/m2 545000/85=6411.76 vs area avg 6100 for 2026-03), under
+    # the rule's >10% threshold, so it correctly does not fire: this is a
+    # real miss, not an artifact of days_on_market=0.
     p1 = by_property[1]
+    assert p1.eval_date == "2026-03-19"
     assert p1.fired is False
     assert p1.suggested_reduction_pct is None
     assert p1.actual_reduction_pct == 4.59
+    assert p1.data_complete is True
 
+    # Property 6 is in neighborhood 3 (Príncipe Real), which has no
+    # market_snapshots rows at all — so price_vs_area_avg and
+    # similar_sold_last_30d both fall back to their "no market data" defaults
+    # (0.0 / 0) rather than a real measurement. data_complete=False flags
+    # this as an unmeasurable event rather than a genuine "did not fire".
     p6 = by_property[6]
+    assert p6.eval_date == "2026-02-14"
     assert p6.fired is False
     assert p6.suggested_reduction_pct is None
     assert p6.actual_reduction_pct == 5.56
+    assert p6.data_complete is False
 
 
-from recommendation_engine.backtesting import evaluate_underpriced_rule, format_report, run_backtest
+def test_run_rule_fired_path_extracts_suggested_reduction():
+    snapshot = {
+        "id": 99, "title": "Test", "type": "apartment", "price": 500000, "area_m2": 100,
+        "bedrooms": 2, "bathrooms": 1, "energy_rating": "B", "listed_date": "2026-01-01",
+        "status": "active",
+    }
+    indicators = {"price_vs_area_avg": 25, "days_on_market": 45, "similar_sold_last_30d": 18}
+    fired, suggested = _run_rule(OverpricedRule(), snapshot, indicators)
+    assert fired is True
+    assert suggested == 15.0  # min(25 * 0.6, 15) == 15, capped
+
+
+def test_run_rule_not_fired_returns_none_suggestion():
+    snapshot = {
+        "id": 99, "title": "Test", "type": "apartment", "price": 500000, "area_m2": 100,
+        "bedrooms": 2, "bathrooms": 1, "energy_rating": "B", "listed_date": "2026-01-01",
+        "status": "active",
+    }
+    indicators = {"price_vs_area_avg": 2, "days_on_market": 45, "similar_sold_last_30d": 18}
+    fired, suggested = _run_rule(OverpricedRule(), snapshot, indicators)
+    assert fired is False
+    assert suggested is None
 
 
 def test_evaluate_underpriced_rule_returns_not_backtestable_note():
