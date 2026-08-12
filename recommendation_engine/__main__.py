@@ -25,12 +25,17 @@ def _build_parser() -> argparse.ArgumentParser:
     seed_parser = subparsers.add_parser("seed-db", help="Seed the demo dataset (idempotent)")
     seed_parser.add_argument("--database-url", help="Override the database URL (mainly for testing)")
 
+    backtest_parser = subparsers.add_parser(
+        "backtest", help="Backtest pricing rules against historical price changes"
+    )
+    backtest_parser.add_argument("--database-url", help="Override the database URL (mainly for testing)")
+
     return parser
 
 
 def main():
     argv = sys.argv[1:]
-    if not argv or argv[0] not in ("run", "create-key", "seed-db"):
+    if not argv or argv[0] not in ("run", "create-key", "seed-db", "backtest"):
         argv = ["run", *argv]
 
     parser = _build_parser()
@@ -41,6 +46,9 @@ def main():
         return
     if args.command == "seed-db":
         _seed_db(args.database_url)
+        return
+    if args.command == "backtest":
+        _backtest(args.database_url)
         return
 
     _run(args)
@@ -64,6 +72,15 @@ def _seed_db(database_url: str | None) -> None:
         seed(conn)
         conn.commit()
     print("Seed data applied.")
+
+
+def _backtest(database_url: str | None) -> None:
+    from .backtesting import format_report, run_backtest
+
+    engine = get_engine(database_url)
+    with engine.connect() as conn:
+        results = run_backtest(conn)
+    print(format_report(results))
 
 
 def _run(args) -> None:

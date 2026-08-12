@@ -48,3 +48,12 @@ def test_seed_db_command_is_idempotent(_migrated_engine, monkeypatch, capsys):
     with engine.connect() as conn:
         count = conn.execute(text("SELECT COUNT(*) FROM properties")).fetchone()[0]
     assert count == 6
+
+
+def test_backtest_command_prints_report(_migrated_engine, monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["rec-engine", "backtest", "--database-url", TEST_DATABASE_URL])
+    main()
+    output = capsys.readouterr().out
+    assert "T01R01" in output
+    assert "T01R02" in output
+    assert "sample" in output.lower()
